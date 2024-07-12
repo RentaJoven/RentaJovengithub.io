@@ -1,0 +1,43 @@
+
+.serlefinWidgetHeader {
+    background-color: #181818;
+    color: white;
+    padding: 1em;
+    text-align: right;
+}
+    .serlefinWidgetHeader > img {
+        width: 1.5em;
+        height: auto;
+        cursor: pointer;
+    }
+.serlefinWidgetWindow {
+    position: fixed;
+    width: 30em;
+    height: calc(100vh - 3em);
+    background-color: white;
+    right: 0em;
+    bottom: 0em;
+    -webkit-box-shadow: 0px 10px 32px 0px rgba(0,0,0,0.75);
+    -moz-box-shadow: 0px 10px 32px 0px rgba(0,0,0,0.75);
+    box-shadow: 0px 10px 32px 0px rgba(0,0,0,0.75);
+}
+    .serlefinWidgetWindow > iframe {
+        border: 1px solid black;
+        width: 100%;
+        height: calc(100% - 3em);
+    }
+.serlefinWidgetShakeAnimation {
+    animation: shake 1s cubic-bezier(.36,.07,.19,.97) infinite;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+.serlefinWidgetIcon{
+    width: 5em;
+    height: auto;
+}
+@media screen and (max-width:567px) {
+    .serlefinWidgetWindow {
+        width: 100%;
+    }
+}

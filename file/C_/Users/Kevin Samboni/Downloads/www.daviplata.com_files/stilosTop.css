@@ -1,0 +1,37 @@
+.topMenu {
+  font-family: Arial,Helvetica,sans-serif;
+  padding: 1rem 0; }
+  .topMenu .listadoTop {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: horizontal;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: row;
+    flex-direction: row;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center; }
+    .topMenu .listadoTop li {
+      text-align: center;
+      margin: 0 7px; }
+      .topMenu .listadoTop li p {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 100; }
+        .topMenu .listadoTop li p b {
+          color: #D3121A; }
+
+@media only screen and (max-width: 600px) {
+  .topMenu {
+    padding-top: 5px !important; }
+  .listadoTop {
+    display: block !important; }
+    .listadoTop li p {
+      margin: 0.4rem 0 !important; } }

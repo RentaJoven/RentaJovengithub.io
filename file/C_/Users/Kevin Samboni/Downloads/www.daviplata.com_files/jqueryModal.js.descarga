@@ -1,0 +1,13 @@
+$(function(){
+    $("#modal-launcher, #modal-close").click(function() {
+        $("#modal-content, #modal-background").toggleClass("active");
+    });
+});
+
+$(function(){
+	if($.browser.msie  && parseFloat($.browser.version) <= 8 ){
+		$("#modal-content, #modal-background").toggleClass("active");
+	}
+});
+
+

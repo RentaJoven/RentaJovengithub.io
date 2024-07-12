@@ -1,0 +1,75 @@
+var number_mobile="";
+
+$(document).ready(function(){$("#chat_button").click(function(a){if($("#mipregunta").val()!=""){enviar();
+$("#mipregunta").val("")}});
+$('a[rel="72"]').addClass("mitad")});
+function validarForm(){
+var a;
+if(!testBox(document.getElementById("name_chat"),true,200,true,true,false,"nombre completo",false,"",false)){return false}if(!testBox(document.getElementById("email_chat"),true,200,true,false,false,"email",false,"",true)){return false}if(!testBox(document.getElementById("number_mobile"),true,10,true,false,true,"celular",false,"",true)){return false}if($("#number_mobile").val().length<=9||$("#number_mobile").val().length>=11){alert("El número de celular debe tener 10 caracteres.");
+return false}var c=$("#number_mobile").val();
+if(c.charAt(0)!=3){alert("Por favor digite un número de celular válido.");
+return false}if($("#optin:checked").val()){a=1}else{a=0}var b=JSON.stringify({serviceName:"amf_chat_services",methodName:"saveContactChat",parameters:[$("#name_chat").val(),$("#email_chat").val(),$("#number_mobile").val(),a]});
+$.ajax({url:BASE_PATH_AMFPHP+"?contentType=application/json",
+	type:"POST",
+	beforeSend:function(c){c.setRequestHeader("X-HTTP-Method-Override","PUT")},
+	data:b,
+	cache:false,
+	crossDomain:true,
+	contentType:"application/json",
+	dataType:"json",
+	success:function(c){
+		number_mobile=$("#number_mobile").val();
+		$("#name_chat").val("");
+		$("#email_chat").val("");
+		$("#number_mobile").val("");
+		$(".first-chat").css("display","none");
+		$(".secont-chat").css("display","block");
+	},
+	error:function(d,e){
+		number_mobile=$("#number_mobile").val();
+		$("#name_chat").val("");
+		$("#email_chat").val("");
+		$("#number_mobile").val("");
+		$(".first-chat").css("display","none");
+		$(".secont-chat").css("display","block");
+	}
+	})
+
+}var start=new Date().getTime();
+processRetries=0;
+
+responseRetries=0;
+
+var MAX_MSG_RETRIES=500;
+
+var MAX_PROCESS_TIME=10000;
+
+var DEBUG=1;
+
+function enviar(){$("#pregunta").append("<p><br />YO - "+$("#mipregunta").val()+"<br /></p>");
+$("#pregunta").scrollTop($("#pregunta").offset().top);
+var a=new Object();
+a.user="daviplata";
+a.password="daviplata";
+a.domain="daviplata";
+a.project="daviplata";
+a.origin="chat_"+number_mobile;
+
+a.text=$("#mipregunta").val();
+var b=JSON.stringify(a);
+$.ajax({url:"https://bmws.bluemessaging.net/message/process",type:"POST",beforeSend:function(c){c.setRequestHeader("X-HTTP-Method-Override","PUT")},data:b,cache:false,crossDomain:true,contentType:"application/json",dataType:"json",success:function(c){recibirRespuesta(c.id)},error:function(d,e){var c=new Date().getTime()-start;
+
+if(processRetries>=MAX_MSG_RETRIES||c>MAX_PROCESS_TIME){}else{processRetries++;
+setTimeout(function(){enviar()},100)}}})}function recibirRespuesta(c){var a=new Object();
+a.user="daviplata";
+a.password="daviplata";
+a.domain="daviplata";
+a.project="daviplata";
+a.origin=c;
+
+a.text="response";
+var b=JSON.stringify(a);
+$.ajax({url:"https://bmws.bluemessaging.net/message/response",type:"POST",beforeSend:function(d){d.setRequestHeader("X-HTTP-Method-Override","PUT")},data:b,cache:false,crossDomain:true,contentType:"application/json",dataType:"json",success:function(d){$("#mipregunta").val("");
+if(d!="NO_RESPONSE"){$("#pregunta").append("<h1> - "+d+"</h1>");
+$("#pregunta").scrollTop($("#pregunta").offset().top)}else{$("#pregunta").scrollTop($("#pregunta").offset().top)}},error:function(e,d){if(processRetries>=MAX_MSG_RETRIES){alert("Error 501: We are sorry, the application did not respond on time or is unable to connect. Please try again later.")}else{processRetries++;
+setTimeout(function(){recibirRespuesta(c)},100)}}})};

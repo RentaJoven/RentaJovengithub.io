@@ -1,0 +1,1122 @@
+﻿var GlobalVariables = {
+    serviceUrl: "../WServices/Generic.ashx",
+    UDNBD: "Daviplata",
+    tokenName: "cdpToken",
+    processName: "psName"
+};
+var cameraVars = {
+    deviceIndex: 0,
+    videoElement: null,
+    stream: null,
+    constraints: {
+        audio: false,
+        video: true
+    },
+    lastBlob: null,
+    lastPhoto: null,
+    lastPhotoAux: null,
+    videPhoto: null,
+    streamHeight: 0, 
+    streamWidth: 0,
+    actual: null
+};
+var chatSocket = null;
+var isScrolling = false;
+AxiosMethods.autoErrorFunction = showMessageVue;
+AxiosConfig.defaultUrl = GlobalVariables.serviceUrl;
+AxiosConfig.defaultDB = GlobalVariables.UDNBD;
+var mainVue = new Vue({
+    el: "#indexMainDiv",
+    data: {
+        message: "",
+        messageList: [],
+        sessionId: "",
+        userData: null,
+        connected: false,
+        linkeables: [],
+        mode: 0,
+        photoAuth:{
+            init: false,
+            step: 0,
+            recording: false,
+            timeRecording: 0,
+            text00: "",
+            text01: "",
+            messageId: ""
+        },
+        tipo: "",
+        devices: [],
+        clientData: null,
+        menu: false,
+        transferenceData:{
+            numberDocument:"",
+            typeDocument:"",
+            phone: "",
+            section: "",
+            id:""
+        },
+        inputMode: {
+            mode: "text",
+            inputType: "text",
+            placeholder: "Escriba un mensaje ...",
+            dataListId: "",
+            dataListData: [],
+            taskid:  null
+        },
+        auxPhotoTypes: ["MIG", "MEN"],
+        captcharValidated: false,
+        demoDevices: [],
+        demoInfo: null
+    },
+    mounted: function () {
+        var self = this;
+        self.sessionId = getToken();
+        if (self.sessionId == null)
+            self.sessionId = "";
+        // Consultar query strings
+        const params = new Proxy(new URLSearchParams(window.location.search), {
+            get: (searchParams, prop) => searchParams.get(prop),
+        });
+        //const params = getQueryStringParameteres();
+        if (params != null) {
+            if (params.t == 'CDB' || window.location.href.indexOf("/CDB") >= 0) self.tipo = 'CDB';
+            else if (params.t == 'CD' || window.location.href.indexOf("/CD") >= 0) self.tipo = 'CD';
+            else if (params.t == 'OC' || window.location.href.indexOf("/OC") >= 0) self.tipo = 'OC';
+            else if (params.t == 'MT' || window.location.href.indexOf("/MT") >= 0) self.tipo = 'MT';
+            else if (params.t == 'CP' || window.location.href.indexOf("/CP") >= 0) self.tipo = 'CP';
+            else if (params.t == '4M' || window.location.href.indexOf("/4M") >= 0) self.tipo = '4M';
+            else if (params.t == 'CR' || window.location.href.indexOf("/CR") >= 0) self.tipo = 'CR';
+            else if (params.t == 'PR' || window.location.href.indexOf("/PR") >= 0) self.tipo = 'PR';
+            else if (params.t == 'GT' || window.location.href.indexOf("/GT") >= 0) self.tipo = 'GT';
+            else if (params.t == 'PF' || window.location.href.indexOf("/PF") >= 0) self.tipo = 'PF';
+            else if (params.t == 'CM' || window.location.href.indexOf("/CM") >= 0) self.tipo = 'CM';
+            else if (params.t == 'PG' || window.location.href.indexOf("/PG") >= 0) self.tipo = 'PG';
+            else if (params.t == 'DMC' || window.location.href.indexOf("/DMC") >= 0) self.tipo = 'DMC';
+            else if (params.t == 'DV' || window.location.href.indexOf("/DV") >= 0) self.tipo = 'DV';
+            else if (params.t == 'ERE' || window.location.href.indexOf("/ERE") >= 0) self.tipo = 'ERE';
+            else if (params.t == 'MIG' || window.location.href.indexOf("/MIG") >= 0) self.tipo = 'MIG';
+            else if (params.t == 'WEB' || window.location.href.indexOf("/WEB") >= 0) self.tipo = 'WEB';
+            else if (params.t == 'MEN' || window.location.href.indexOf("/MEN") >= 0) self.tipo = 'MEN';
+            else if (params.t == 'TUT' || window.location.href.indexOf("/MEN") >= 0) self.tipo = 'TUT';
+            else if (params.t == 'EMP' || window.location.href.indexOf("/EMP") >= 0) self.tipo = 'EMP';
+            else self.tipo = 'CN';
+
+            if (params.cd == 'BA' || window.location.href.indexOf("/=BA") >= 0) self.tipo += 'BA';
+        }
+        else
+            self.tipo = 'CN';
+        var prevType = getProcess();
+        if (self.tipo != prevType)
+            self.sessionId = "";
+        document.getElementById("indexMainDiv").style.display = "block";
+        showProgress();
+        httpFunc(AxiosConst.GENERIC_DS, "Chat/Get_Variables", { "sessionId": self.sessionId, "UserAgent": "", "UserHostAddress": "" }, function (data) {
+            var preSes = self.sessionId;
+            self.sessionId = data.data[0][0]["sessionId"];
+            delete data.data[0][0]["sessionId"];
+            self.userData = data.data[0][0];
+            self.linkeables = data.data[1];
+            var init2 = function(){
+                if (self.sessionId == preSes && preSes != ""){
+                    self.iniSocket();
+                    self.getMessages();
+                    self.mode = 1;
+                } else if(self.tipo == 'GT' || self.tipo == 'PG') {
+                    self.iniMessage('Inicio');
+                    self.mode = 1;
+                } else
+                    hideProgress();
+                ///*TODO*/self.startCamera(true);
+            };
+            if (params.data != null && self.tipo != "WEB") {
+                httpCallObj(GlobalVariables.serviceUrl + "?op=apiDecrypt", { "text": params.data.replace(/[ ]/g, "+") }, function (data) {
+                    self.clientData = JSON.parse(data.data);
+                    for (var key in self.clientData) {
+                        if (self.clientData[key] !== undefined) {
+                            self.transferenceData[key] = self.clientData[key];
+                        }
+                    }
+                    init2();
+                }, function (error) {
+                    console.log(error);
+                    self.mode = 99;
+                    hideProgress();
+                });
+                return;
+            } else if (self.tipo == "WEB") {
+                self.insLogEvento("iframe");
+                if (params.data == null) {
+                    self.mode = 99;
+                    hideProgress();
+                    return;
+                };
+                httpCallObj(GlobalVariables.serviceUrl + "?op=apiDecrypt2", { "text": params.data.replace(/[ ]/g, "+") }, function (data) {
+                    self.clientData = JSON.parse(data.data);
+                    for (var key in self.clientData) {
+                        if (self.clientData[key] !== undefined) {
+                            self.transferenceData[key] = self.clientData[key];
+                        }
+                    }
+                    init2();
+                }, function (error) {
+                    console.log(error);
+                    self.mode = 99;
+                    hideProgress();
+                });
+                return;
+            }
+            init2();
+        }, function (error) {
+            console.log(error);
+            self.mode = 99;
+            hideProgress();
+        });
+        //hideProgress();
+        //setTimeout(self.changeCamera, 100);
+    },
+    destroyed: function () {
+        this.stopStream();
+    },
+    methods: {
+        getMessages: function () {
+            var self = this;
+            showProgress();
+            self.messageList = [];
+            httpFunc(AxiosConst.GENERIC_DT, "Chat/Get_Messages", { "sessionId": self.sessionId }, function (data) {
+                var item, nextMsg, message, messageArray;
+                self.messageList = [];
+                for (var i = 0; i < data.data.length; i++) {
+                    messageArray = data.data[i].message.split("|");
+                    for(var mai = 0; mai < messageArray.length; mai++){
+                        message = {};
+                        for(var key in data.data[i]) message[key] = data.data[i][key];
+                        message.message = messageArray[mai];
+                        message.options = extratOptions(message.message);
+                        if ((i + 1) != data.data.length) {
+                            message.options.enabled = false;
+                            item = message.options;
+                            nextMsg = data.data[i + 1].message;
+                            for (var j = 0; j < item.list.length; j++) {
+                                if (item.list[j].text == nextMsg)
+                                    item.list[j].selected = true;
+                                else
+                                    item.list[j].selected = false;
+                            }
+                            if (message.messageType == "photoAuth") {
+                                message.direction = "inf" + (message.Archivo == "OK" ? "Ok" : "Error");
+                                message.options.outMsg = (message.Archivo == "OK" ? "Imágenes completas" : "Imágenes incompletas")
+                            }
+                        } else if (message.messageType == "photoAuth") {
+                            if (message.messageType == "photoAuth" && message.Archivo == "OK") {
+                                message.direction = "inf" + (message.Archivo == "OK" ? "Ok" : "Error");
+                                message.options.outMsg = (message.Archivo == "OK" ? "Imágenes completas" : "Imágenes incompletas")
+                            } else {
+                                var txts = message.message.split("#");
+                                self.photoAuth.text00 = txts[0];
+                                self.photoAuth.text01 = txts[1];
+                                self.photoAuth.messageId = message.Id_Mensaje;
+                                data.data.splice(i, 1);
+                                self.startCamera(true);
+
+                            }
+                        }
+                        self.messageList.push(message);
+                    }
+                }
+                setTimeout(function () {
+                    for (var i = 0; i < self.messageList.length; i++)
+                        createLinks("msg_" + self.messageList[i].Id_Mensaje, self.linkeables);
+                    self.updateInputMode();
+                }, 100);
+                self.gotoBottom();
+                hideProgress();
+            }, "auto");
+        },
+        iniSocket: function (connectedCallback) {
+            var self = this;
+            var url = self.userData["SocketEndPointExternal"];
+            if (chatSocket == null) {
+                chatSocket = io(url, { transports: ["websocket"], rejectUnauthorized: false });
+                chatSocket.on("connect", function () {
+                    console.log("Connected!!!");
+                    chatSocket.emit("appSubscribe", { appName: self.userData["SocketAppName"], userName: self.sessionId });
+                    if (self.connected == true)
+                        self.getMessages();
+                    self.connected = true;
+                    if (connectedCallback != null) {
+                        connectedCallback();
+                        connectedCallback = null;
+                    }
+                });
+                chatSocket.on("message", function (data) {
+                    if (data.additionalData != null && data.additionalData.type == "photoAuth") {
+                        var txts = data.additionalData.messageOut.split("#");
+                        self.photoAuth.text00 = txts[0];
+                        self.photoAuth.text01 = txts[1];
+                        self.photoAuth.messageId = data.additionalData.messageId;
+                        self.startCamera(true);
+                    } else {
+                        data.options = extratOptions(data.message);
+                        data.Id_Mensaje = (new Date()).getTime();
+                        self.messageList.push(data);
+                        setTimeout(function () {
+                            createLinks("msg_" + data.Id_Mensaje, self.linkeables)
+                            self.updateInputMode();
+                        }, 100);
+                        //self.gotoBottom();
+                        if (data.message.indexOf("encuesta") >= 0)
+                            self.gotoBottom(true);
+                        else
+                            self.gotoBottom(false);
+                    }
+                });
+            }
+        },
+        iniWEB: function(option){
+            if (option == "OTRO") { 
+                this.mode = 3;
+                //window.location.href = "https://chatespecializado.daviplata.com";
+            } else {
+                httpCallObj(GlobalVariables.serviceUrl + "?op=getNewUUID", {}, function (data) {
+                    obj_parameters = {section:"iframe",id:data.data};
+                    parameters = JSON.stringify(obj_parameters)
+                    httpCallObj(GlobalVariables.serviceUrl + "?op=apiEncrypt", {text:parameters}, function (data) {
+                        var dataParameter = "data="+data.data
+                        window.location.href = "https://chatdaviplata.com/" + option + "?" + dataParameter;
+                    },"auto")
+                },"auto")
+            }
+
+        },
+        iniTUT: function(){
+            var root = "";
+            if(window.location.origin.indexOf("https://chatdaviplata.com") >= 0)
+                root = window.location.origin+"/WMain/ChatClient/formTutores.html";
+            else if(window.location.href.toLowerCase().indexOf("chatdaviplata/wmain/chatclient") >= 0)
+                root = window.location.origin+"/chatdaviplata/WMain/ChatClient/formTutores.html?t=";
+            else
+                root = window.location.origin+"/WMain/ChatClient/formTutores.html";
+            window.location.href = root;
+
+        },
+        iniMessage: function (option) {
+            var self = this;
+            if (option == "Inicio"){
+                if (self.tipo == 'CN') self.message = "Cambio de número";
+                else if (self.tipo == 'CD') self.message = "Cambio de dispositivo";
+                else if (self.tipo == 'OC') self.message = "Olvido de clave y/o Desbloqueo";
+                else if (self.tipo == 'MT') self.message = "Alerta transaccional";
+                else if (self.tipo == 'CP') self.message = "Cargar Plata";
+                else if (self.tipo == '4M') self.message = "4x1000";
+                else if (self.tipo == 'CR') self.message = "Certificaciones";
+                else if (self.tipo == 'PR') self.message = "Pérdida o Robo";
+                else if (self.tipo == 'GT') self.message = "Gestores autorizados DaviPlata";
+                else if (self.tipo == 'PF') self.message = "Posible fraude";
+                else if (self.tipo == 'MTBA') self.message = "Desbloqueo";
+                else if (self.tipo == 'CM') self.message = "Registro de Menores";
+                else if (self.tipo == 'PG') self.message = "Pagos Gobierno";
+                else if (self.tipo == 'DMC') self.message = "DaviPlata me conoce";
+                else if (self.tipo == 'CDB') self.message = "Cambio de dispositivo";
+                else if (self.tipo == 'DV') self.message = "Chat con asesor";
+                else if (self.tipo == 'ERE') self.message = "Chat Preferencial";
+                else if (self.tipo == 'MIG') self.message = "Registro Migrantes";
+                else if (self.tipo == 'MEN') self.message = "Registro Menores";
+                else if (self.tipo == 'TUT') self.message = "Tutores";
+                else if (self.tipo == 'EMP') self.message = "Contrataciones masivas";
+
+                //if(self.clientData != null){
+                //    self.message += "\n\nTipo Documento: "+self.clientData["typeDocument"];
+                //    self.message += "\nNúmero documento: "+self.clientData["numberDocument"];
+                //    if(self.clientData["phone"] != null)
+                //        self.message += "\nNúmero Monedero: "+self.clientData["phone"];
+                //}
+            }
+            else if (option != null)
+                self.message = option;
+            if (self.message == "") return;
+            if (self.sessionId == "") {
+                showProgress();
+                var parameters = {
+                    Tipo:self.tipo,
+                    UserAgent: "",
+                    UserHostAddress: "",
+                    TypeDocument: self.transferenceData.typeDocument,
+                    NumberDocument: self.transferenceData.numberDocument,
+                    Phone: self.transferenceData.phone,
+                    Section: self.transferenceData.section,
+                    TransferenceId: self.transferenceData.id
+                }
+                //console.log(parameters);
+                httpFunc(AxiosConst.GENERIC_ST, "Chat/Ins_Sesion", parameters, function (data) {
+                    self.sessionId = data.data;
+                    setToken(self.sessionId); // Desde aquí se controlan las sesiones persistentes
+                    setProcess(self.tipo); // Desde aquí se controlan las sesiones persistentes
+                    self.iniSocket(function () {
+                        hideProgress();
+                        self.insMessage();
+                    });
+                }, "auto");
+            } else
+                self.insMessage();
+        },
+        insMessage: function () {
+            var self = this;
+            if(self.inputMode.mode == "city"){
+                var esta = false;
+                for(var i = 0; i < self.inputMode.dataListData.length && !esta; i++){
+                    if(self.inputMode.dataListData[i].Value == self.message)
+                        esta = true;
+                }
+                if(!esta)
+                    return;
+            }
+            var pars = {
+                db: GlobalVariables.UDNBD,
+                sessionId: self.sessionId,
+                chanel: self.userData["SocketAppName"],
+                message: self.message
+            };
+            var msg = {
+                "Id_Mensaje": null,
+                "direction": "in",
+                "message": self.message,
+                "options": {
+                    "outMsg": self.message,
+                    "list": []
+                }
+            };
+            Vue.set(msg, "Date", "Enviando ...");
+            self.messageList.push(msg);
+            self.updateInputMode();
+            self.message = "";
+            self.gotoBottom();
+            var actualTime = formatAMPM(new Date());
+            httpCallObj(GlobalVariables.serviceUrl + "?op=sendMessage", pars, function (data) {
+                msg["Date"] = actualTime;
+            }, "auto");
+        },
+        selectOption: function (item, option) {
+            if (!item.enabled) return;
+            if(option.type == "download"){
+                window.location.href = option.value;
+                return;
+            }
+            item.enabled = false;
+            for (var i = 0; i < item.list.length; i++) {
+                if (item.list[i] == option)
+                    item.list[i].selected = true;
+                else
+                    item.list[i].selected = false;
+            }
+            this.iniMessage(option.value);
+        },
+        gotoBottom: function (smooth) {
+            var self = this;
+            setTimeout(function () {
+                if (isScrolling) return;
+                if (smooth == true) {
+                    isScrolling = true;
+                    self.smoothScrollDown();
+                } else {
+                    var element = document.getElementsByTagName("html")[0];
+                    element.scrollTop = element.scrollHeight - element.clientHeight;
+                }
+            }, 10);
+
+        },
+        gotoTop: function (id) {
+            setTimeout(function () {
+                var element = document.getElementsByTagName("html")[0];
+                element.scrollTop = 0;
+            }, 100);
+
+        },
+        smoothScrollDown: function () {
+            var element = document.getElementsByTagName("html")[0];
+            element.scrollBy(0, 3); // horizontal and vertical scroll increments
+            //console.log("smooth: " + (element.scrollTop - (element.scrollHeight - element.clientHeight)));
+            scrolldelay = setTimeout(this.smoothScrollDown, 20); // scrolls every 100 milliseconds
+            if (Math.abs(element.scrollTop - (element.scrollHeight - element.clientHeight)) <= 3) {
+                clearTimeout(scrolldelay);
+                isScrolling = false;
+            }
+        },
+        startSelfieAuth: function(){
+
+        },
+        startCamera: function (restart) {
+            //initCamera();
+            var self = this;
+            navigator.mediaDevices.getUserMedia(cameraVars.constraints)
+                .then(function (stream) {
+                    window.stream = stream;
+                    if (restart) {
+                        cameraVars.deviceIndex = 0;
+                        self.photoAuth.step = 0;
+                        self.changeCamera();
+                        return;
+                    }
+                    cameraVars.videoElement = document.querySelector("video");
+                    const videoTracks = stream.getVideoTracks();
+                    cameraVars.streamHeight = videoTracks[0].getSettings().height;
+                    cameraVars.streamWidth = videoTracks[0].getSettings().width;
+                    cameraVars.stream = stream;
+                    cameraVars.videoElement.srcObject = stream;
+                    
+                    self.photoAuth.init = true;
+                    if (restart) {
+                        self.photoAuth.step = 0;
+                    }
+                    self.photoAuth.recording = false;
+                    self.mode = 2;
+                    self.gotoTop();
+                })
+                .catch(function(err){
+                    if (err.name === 'OverconstrainedError') {
+                        showMessage("No se puede iniciar la camara");
+                    } else if (err.name === "NotAllowedError") {
+                        showMessage("Debe permiter al acceso a la cámara");
+                    } else {
+                        console.log(err);
+                        showMessage("No se puede iniciar la camara");
+                    }
+                });
+        },
+        changeCamera: function(){
+            var self = this;
+            if(this.photoAuth.recording) return;
+            navigator.mediaDevices.enumerateDevices()
+                .then(function(deviceInfos){
+                    var videoDevices = [];
+                    self.devices = [];
+                    var back = null, front = null;
+                    for (var i = 0; i < deviceInfos.length; i++) {
+                        const deviceInfo = deviceInfos[i];
+                        if (deviceInfo.kind === 'videoinput') {
+                            videoDevices.push(deviceInfo.deviceId);
+                            self.devices.push(deviceInfo.label);
+                            if (front == null && deviceInfo.label.toLowerCase().indexOf("front") >= 0)
+                                front = deviceInfo;
+                            if (back == null && 
+                                (deviceInfo.label.toLowerCase().indexOf("back") >= 0) ||
+                                (deviceInfo.label.toLowerCase().indexOf("trasera") >= 0)
+                            )
+                                back = deviceInfo;                            
+                        }                        
+                    }                    
+                    if (front != null && back != null) {
+                        if (cameraVars.actual == null || cameraVars.actual == "front") {
+                            cameraVars.actual = "back";
+                            self.stopStream();
+                            cameraVars.constraints.video = { deviceId: { exact: back.deviceId } };
+                        } else {
+                            cameraVars.actual = "front";
+                            self.stopStream();
+                            cameraVars.constraints.video = { deviceId: { exact: front.deviceId } };
+                        }
+                    }  else if (self.userData["UserAgent"].indexOf("iphone") >= 0) {
+                            if (videoDevices.length == 0) return;
+                            // self.demo.len = cameraVars.deviceIndex;
+                            if (cameraVars.deviceIndex == 0)
+                                cameraVars.deviceIndex = videoDevices.length - 1;
+                            else
+                                cameraVars.deviceIndex = 0;
+                            self.stopStream();
+                            cameraVars.constraints.video = { deviceId: { exact: videoDevices[cameraVars.deviceIndex] } };
+                            self.demo.len = [videoDevices[0],videoDevices[1],videoDevices[2],videoDevices[3]]; 
+                    } else {
+                        if (videoDevices.length == 0) return;
+                        cameraVars.deviceIndex--;
+                        if (cameraVars.deviceIndex < 0)
+                            cameraVars.deviceIndex = videoDevices.length - 1;
+                        self.stopStream();
+                        cameraVars.constraints.video = { deviceId: { exact: videoDevices[cameraVars.deviceIndex] } };
+                    }
+
+                    self.startCamera(false);
+            }).catch(function(err){
+                console.log(err)
+            });
+        },
+        startCameraDemo: function () {
+            var self = this;
+            self.mode = 100;
+            navigator.mediaDevices.getUserMedia(cameraVars.constraints)
+                .then(function (stream) {
+                    window.stream = stream;
+                    navigator.mediaDevices.enumerateDevices()
+                        .then(function (deviceInfos) {
+                            self.demoDevices = [];
+                            for (var i = 0; i < deviceInfos.length; i++) {
+                                const deviceInfo = deviceInfos[i];
+                                if (deviceInfo.kind === 'videoinput') {
+                                    self.demoDevices.push(deviceInfo);
+                                }
+                            }
+                        }).catch(function (err) {
+                            console.log(err)
+                        });
+                })
+                .catch(function (err) {
+                    if (err.name === 'OverconstrainedError') {
+                        showMessage("No se puede inciar la camara");
+                    } else if (err.name === "NotAllowedError") {
+                        showMessage("Debe permiter al acceso a la cámara");
+                    } else {
+                        console.log(err);
+                        showMessage("No se puede inciar la camara");
+                    }
+                });
+        },
+        selectDeviceDemo: function (item) {
+            var self = this;
+            self.stopStream();
+            cameraVars.constraints.video = { deviceId: { exact: item.deviceId } };
+            self.selectCameraDemo();
+        },
+        selectCameraDemo: function () {
+            //initCamera();
+            var self = this;
+            navigator.mediaDevices.getUserMedia(cameraVars.constraints)
+                .then(function (stream) {
+                    window.stream = stream
+                    cameraVars.videoElement = document.getElementById("videoDemo");
+                    const videoTracks = stream.getVideoTracks();
+                    self.demoInfo = { videoTracks: videoTracks };
+                    self.demoInfo.settings = videoTracks[0].getSettings();
+                    cameraVars.streamHeight = videoTracks[0].getSettings().height;
+                    cameraVars.streamWidth = videoTracks[0].getSettings().width;
+                    cameraVars.stream = stream;
+                    cameraVars.videoElement.srcObject = stream;
+                    self.mode = 101;
+                })
+                .catch(function (err) {
+                    if (err.name === 'OverconstrainedError') {
+                        showMessage("No se puede inciar la camara");
+                    } else if (err.name === "NotAllowedError") {
+                        showMessage("Debe permiter al acceso a la cámara");
+                    } else {
+                        console.log(err);
+                        showMessage("No se puede inciar la camara");
+                    }
+                });
+        },
+        takePhotoDemo: function () {
+            var canvas = document.createElement("canvas");
+            
+            canvas.width = cameraVars.streamWidth;
+            canvas.height = cameraVars.streamHeight;
+            canvas.getContext('2d').drawImage(cameraVars.videoElement, 0, 0, cameraVars.streamWidth, cameraVars.streamHeight);
+            var idata = canvas.toDataURL("image/jpeg");
+            var self = this;
+            var data = new FormData()
+            data.append("photo", dataURLtoFile(idata, "photo.jpg"));
+            var config = {
+                header: {
+                    "Content-Type": "multipart/form-data"
+                }
+            }
+            showProgress();
+            self.stopStream();
+            axios.post("../WHandlers/FileHandler.ashx?u=demo", data, config)
+                .then(function (response) {
+                    self.stopStream();
+                    self.photoAuth.step = 100;
+                    var odata = { settings: self.demoInfo.settings, videoTracks: [] };
+                    for (var i = 0; i < self.demoInfo.videoTracks.length; i++) {
+                        odata.videoTracks.push({
+                            "contentHint": self.demoInfo.videoTracks[i]["contentHint"],
+                            "enabled": self.demoInfo.videoTracks[i]["enabled"],
+                            "id": self.demoInfo.videoTracks[i]["id"],
+                            "kind": self.demoInfo.videoTracks[i]["kind"],
+                            "label": self.demoInfo.videoTracks[i]["label"],
+                            "muted": self.demoInfo.videoTracks[i]["muted"],
+                            "oncapturehandlechange": self.demoInfo.videoTracks[i]["oncapturehandlechange"],
+                            "onended": self.demoInfo.videoTracks[i]["onended"],
+                            "onmute": self.demoInfo.videoTracks[i]["onmute"],
+                            "onunmute": self.demoInfo.videoTracks[i]["onunmute"],
+                            "readyState": self.demoInfo.videoTracks[i]["readyState"]
+                        });
+                    }
+                    var pars = {
+                        photoFile: response.data[0].serverName,
+                        data: JSON.stringify(odata),
+                        db: GlobalVariables.UDNBD
+                    };
+                    httpCallObj(GlobalVariables.serviceUrl + "?op=sendPhotoDemo", pars, function (data) {
+                        hideProgress();
+                        self.mode = 100;
+                        self.gotoBottom();
+                    }, "auto");
+                })
+                .catch(function (err) {
+                    console.log(err);
+                });
+
+        },
+        cameraAction:function(){
+            if(this.photoAuth.step == 0.5 || this.photoAuth.step == 5.5)
+                this.takePhoto();
+            else 
+                this.getRecording();
+        },
+        takePhoto: function (){
+            var canvas = document.createElement("canvas");            
+                if (this.userData["UserAgent"].indexOf("iphone") >= 0) {
+                    canvas.width = cameraVars.streamHeight;
+                    canvas.height = cameraVars.streamWidth;
+                } else {
+                    canvas.width = cameraVars.streamWidth;
+                    canvas.height = cameraVars.streamHeight;
+                }                
+                canvas.getContext('2d').drawImage(cameraVars.videoElement, 0, 0, canvas.width, canvas.height);
+            if(this.photoAuth.step == 5.5){
+                cameraVars.lastPhotoAux = canvas.toDataURL("image/jpeg");
+                document.getElementById("imgConfirma").src = cameraVars.lastPhotoAux;
+            } else {
+                cameraVars.lastPhoto = canvas.toDataURL("image/jpeg");
+                document.getElementById("imgConfirma").src = cameraVars.lastPhoto;
+            }
+            //this.photoAuth.step = 1;/*Varificacion de la foto*/
+            this.photoAuth.step += 0.5;/*Varificacion de la foto*/
+            
+        },
+        nextOrPrevious:function(sign){
+            var av = 0.5*sign;
+            this.photoAuth.step += av;
+            if (this.auxPhotoTypes.indexOf(this.tipo) >= 0) {
+                if(this.photoAuth.step == 1.5)
+                    this.photoAuth.step = 5;
+                if(this.photoAuth.step == 6.5)
+                    this.photoAuth.step = 1.5;
+            }
+            
+        },
+        getRecording: function(){
+            var durartion = 3000;
+            var self = this;
+            var recorder = RecordRTC(cameraVars.stream, {type: "video"});
+            self.photoAuth.recording = true;
+            self.photoAuth.timeRecording = 3;
+            recorder.startRecording();
+            setTimeout(function(){
+                recorder.stopRecording(function() {
+                    self.photoAuth.recording = false;
+                    cameraVars.lastBlob = recorder.getBlob();
+                    self.uploadData();
+                });
+            }, durartion);
+            var interval = setInterval(function(){
+                self.photoAuth.timeRecording--;
+                if(self.photoAuth.timeRecording <= 0)
+                    clearInterval(interval);
+            }, 1000);
+        },
+        uploadData: function(){
+            var self = this;
+            self.photoAuth.step = 3;
+            var data = new FormData()
+            var fileOfBlob = new File([cameraVars.lastBlob], "video.webm");
+            data.append("video", fileOfBlob);
+
+            var canvas = document.createElement("canvas");
+            canvas.width = cameraVars.streamWidth;
+            canvas.height = cameraVars.streamHeight;
+            var context = canvas.getContext('2d');
+            var width = canvas.width;
+            var height = canvas.height;
+            if (this.userData["UserAgent"].indexOf("iphone") >= 0) {
+                width = canvas.height;
+                height = canvas.width;
+            }
+            context.drawImage(cameraVars.videoElement, 0, 0, width, height);
+            data.append("videoImage", dataURLtoFile(canvas.toDataURL("image/jpeg"), "videoImage.jpg"));
+
+            if(cameraVars.lastPhoto != null)
+                data.append("photo", dataURLtoFile(cameraVars.lastPhoto, "photo.jpg"));
+            if (cameraVars.lastPhotoAux != null)
+                data.append("photoAux", dataURLtoFile(cameraVars.lastPhotoAux, "photoAux.jpg"));
+            var config = {
+                header : {
+                    "Content-Type" : "multipart/form-data"
+                }
+            }
+            self.stopStream();
+            
+
+            axios.post("../WHandlers/FileHandler.ashx", data, config)
+                .then(function (response) {
+                    self.stopStream();
+                    self.photoAuth.step = 3;
+                    var pars = {
+                        photoFile: response.data[2].serverName,
+                        videoFile: response.data[0].serverName,
+                        videoImage: response.data[1].serverName,
+                        photoFileAux: (response.data.length > 3 ? response.data[3].serverName : ""),
+                        messageId: self.photoAuth.messageId,
+                        device: self.userData["UserAgent"],
+                        blob: {size: cameraVars.lastBlob.size, type: cameraVars.lastBlob.type},
+                        db: GlobalVariables.UDNBD
+                    };
+                    var msg = {
+                        "Id_Mensaje": null,
+                        "direction": "infOk",
+                        "message": "Imágenes completas",
+                        "options": {
+                            "outMsg": "Imágenes completas",
+                            "list": []
+                        },
+                        "Date": formatAMPM(new Date())
+                    };
+                    self.messageList.push(msg);
+                    httpCallObj(GlobalVariables.serviceUrl + "?op=sendPhotoAut", pars, function (data) {
+                        self.mode = 1;
+                        self.gotoBottom();
+                    }, "auto");
+                })
+                .catch(function (err) {
+                    console.log(err);
+                });
+        },
+        stopStream: function(){
+            if(cameraVars.stream != null)
+                cameraVars.stream.getTracks().forEach(function (track) { track.stop(); });
+            if (window.stream != null)
+                window.stream.getTracks().forEach(function (track) { track.stop(); });
+        },
+        goTo: function(option){
+            var url = null;
+            if(option == "CN")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html";
+            else if(option == "4M")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html?t=4M";
+            else if(option == "CP")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html?t=CP";
+            else if(option == "CM")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html?t=CM";
+            else if(option == "CD")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html?t=CD";
+            else if(option == "OC")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html?t=OC";
+            else if(option == "PF")
+                url = "https://m.serlefin.com/chatdaviplata/WMain/ChatClient/chat.html?t=PF";
+
+            setToken(null);
+            window.location.href = url;
+        },
+        updateInputMode: function(){
+            var prevMode = this.inputMode.mode;
+            var newMode = "text";
+            if(this.messageList.length > 0){
+                var lastText = this.messageList[this.messageList.length - 1].options.outMsg;
+                for (var i = 0; i < this.linkeables.length; i++) {
+                    if(this.linkeables[i].Tipo == "Ciudad" && lastText.indexOf(this.linkeables[i].Valor) >= 0){
+                        newMode = "city";
+                        break;
+                    } else if(this.linkeables[i].Tipo == "Fecha" && lastText.indexOf(this.linkeables[i].Valor) >= 0){
+                        newMode = "date";
+                        break;
+                    }
+                }
+            }
+            if(prevMode != newMode){
+                    this.inputMode.mode = newMode;
+                    this.inputMode.inputType = "text";
+                    this.inputMode.dataListId = "";
+                    this.inputMode.placeholder = "Escriba un mensaje ...";
+                    this.inputMode.dataListData = [];
+                    this.inputMode.taskid =  null;
+                if(newMode == "city"){
+                    this.inputMode.inputType = "text";
+                    this.inputMode.dataListId = "dlRegular";
+                    this.inputMode.placeholder = "Seleccione una opción ...";
+                    this.inputMode.dataListData = [];
+                    this.updateCitiList();
+                } else if(newMode == "date"){
+                    this.inputMode.inputType = "date";
+                    this.inputMode.placeholder = "Seleccione una fecha ...";
+                }
+
+            }
+        },
+        updateCitiList: function(){
+            var self = this;
+            if(this.inputMode.taskid != null) clearTimeout(this.inputMode.taskid);
+            this.inputMode.taskid = setTimeout(function(){
+                httpFunc(AxiosConst.GENERIC_DT, "Chat/Get_Ciudades_Texto", { "Texto": self.message }, function (data) {
+                    for(var i = 0; i < data.data.length; i++)
+                        data.data[i].Value = replaceAccents(data.data[i].Value);
+                    self.inputMode.dataListData = data.data;
+                }, "auto");
+            }, 300);
+        },
+        inputKeyUp: function(){
+            if(this.inputMode.mode == "city"){
+                this.message = replaceAccents(this.message);
+                
+                var esta = false;
+                for(var i = 0; i < this.inputMode.dataListData.length && !esta; i++){
+                    if(this.inputMode.dataListData[i].Value == this.message)
+                        esta = true;
+                }
+                if(esta)
+                    this.insMessage();
+                else
+                    this.updateCitiList();
+            }
+        },
+        inputListOption: function(item){
+            console.log(item);
+        },
+        insLogEvento: function(evento){
+            httpFunc(AxiosConst.GENERIC_DO, "Comun/Ins_Log_Eventos", {Evento:evento,UserHostAddress:''}, function (data) {
+            }, "auto");
+        }
+    }
+});
+/****************************************************************************************************************************************/
+/********************************************************* AUX FUNCTIONS ****************************************************************/
+/****************************************************************************************************************************************/
+function extratOptions(msg) {
+    if (msg.indexOf("youtu") < 0)
+        msg = msg.replace(/[*_]/g, "");
+    var includeNumer = false;
+    if (msg.indexOf("--") == 0) {
+        includeNumer = true;
+        msg = msg.replace(/--[ ]*/, "");
+    }
+    var options = {
+        outMsg: msg,
+        list: [],
+        enabled: true
+    };
+    var reg = /\n([1-9])(\.){0,1}[ ]*(.+)/g;
+    var parts = reg.exec(msg);
+    var tmp, tmpText;
+    while (parts != null) {
+        tmpText = parts[3];
+        if (includeNumer)
+            tmpText = tmpText[0].toUpperCase() + tmpText.substring(1).toLowerCase();
+        tmp = {
+            text: tmpText,//(parts[1] == "" || parts[1] == null) ? parts[3] : parts[1],
+            value: tmpText,
+            type: "text"
+        };
+        if (tmpText.indexOf("https://m.serlefin.com/") == 0 || tmpText.indexOf("https://m2.serlefin.com/") == 0){
+            tmp.text = "Descargar";
+            tmp.value = tmpText.replace(/ /g, "_");
+            tmp.type = "download";
+        }
+            
+        if (includeNumer) {
+            tmp.text = parts[1] + ". " + tmp.text;
+            tmp.value = parts[1] + ". " + tmp.value;
+        }
+        options.list.push(tmp);
+        Vue.set(tmp, "selected", null);
+        parts = reg.exec(msg);
+    }
+    options.outMsg = options.outMsg.replace(reg, "");
+    if (includeNumer)
+        options.outMsg = options.outMsg[0].toUpperCase() + options.outMsg.substring(1).toLowerCase();
+    return options;
+}
+function formatAMPM(date) {
+    var hours = date.getHours();
+    var minutes = date.getMinutes();
+    var seconds = date.getSeconds();
+    var ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    hours = hours < 10 ? '0' + hours : hours;
+    seconds = seconds < 10 ? '0' + seconds : seconds;
+    var strTime = hours + ':' + minutes + ':' + seconds + ' ' + ampm;
+    return strTime;
+}
+function createLinks(elementId, linkeables) {
+    var element = document.getElementById(elementId);
+    if (element == null) return;
+    var html = element.innerHTML;
+    var re;
+    for (var i = 0; i < linkeables.length; i++) {
+        if(linkeables[i].Tipo != "Link") continue;
+        re = RegExp(linkeables[i].Valor, "g");
+        html = html.replace(re, "<a href='" + linkeables[i].Valor + "'>" + linkeables[i].Link + "</a>");
+    }
+    element.innerHTML = html;
+}
+function captchaCallback(data) {
+    //document.getElementById("divBts").style.display = "block";
+    //document.getElementById("divCap").style.display = "none";
+    mainVue.captcharValidated = true;
+}
+/****************************************************************************************************************************************/
+/******************************************************* COMMON FUNCTIONS ***************************************************************/
+/****************************************************************************************************************************************/
+window.onbeforeunload = function () {
+    return this.mainVue.$destroy();
+}
+function showProgress() {
+    document.getElementById("divProcess").style.display = "block";
+    return false;
+}
+function hideProgress() {
+    document.getElementById("divProcess").style.display = "none";
+    return false;
+}
+function showMessage(msg) {
+    if (msg.indexOf("Error") == 0)
+        document.getElementById("lbMessage").style.color = "red";
+    else document.getElementById("lbMessage").style.color = "black";
+
+    document.getElementById("lbMessage").innerText = msg;
+    document.getElementById("divMessage").style.display = "block";
+    document.getElementById("btAccept").focus();
+    return false;
+}
+function hideMessage() {
+    document.getElementById("divMessage").style.display = "none";
+    hideProgress();
+    return false;
+}
+function showConfirm(msg, okCallback, cancelCallback, event, textOk, textCancel) {
+    document.getElementById("divConfirm").style.display = "block";
+    document.getElementById("lbConfirmMessage").innerHTML = msg;
+    var confirm = document.getElementById("btConfirmAccept");
+    var cancel = document.getElementById("btConfirmCancel");
+    confirm.onclick = function () {
+        if (okCallback!=null)
+            okCallback(event);
+        document.getElementById("divConfirm").style.display = "none";
+    };
+    cancel.onclick = function(){
+        if(cancelCallback != null)
+            cancelCallback(event);
+        document.getElementById("divConfirm").style.display = "none";
+    };
+    document.getElementById("btXConfirmCancel").onclick = function(){
+        if(cancelCallback != null)
+            cancelCallback(event);
+        document.getElementById("divConfirm").style.display = "none";
+    };
+    confirm.innerText = textOk != null? textOk: "Aceptar";
+    cancel.innerText = textCancel != null? textCancel: "Cancelar";
+    document.getElementById("btConfirmAccept").focus();
+
+    return false;
+}
+function showMessageVue(data) {
+    if (data.errorMessage != null)
+        showMessage(data.errorMessage);
+    else if (data.d != null)
+        showMessage(data.d);
+    else if (data.Message != null)
+        showMessage(data.Message);
+    else if (data.message != null)
+        showMessage(data.message);
+    else if (typeof data.message == "string")
+        showMessage(data.message);
+    else if (typeof data == "string")
+        showMessage(data);
+    else
+        console.log(data);
+    hideProgress();
+}
+function getQueryStringParameteres() {
+    var ret = {};
+    var index = window.location.href.indexOf("?");
+    if (index > 0 && index + 1 < window.location.href.length) {
+        var pars = window.location.href.substring(index + 1).split("&");
+        var sub;
+        for (var i = 0; i < pars.length; i++) {
+            sub = pars[i].split("=");
+            if (sub.length == 2)
+                ret[sub[0]] = sub[1];
+        }
+    }
+    return ret;
+}
+function getToken() {
+    var ret = null;
+    try {
+        ret = localStorage.getItem(GlobalVariables.tokenName);
+    } catch (error) {
+        console.log(error);
+        ret = document.cookie;
+        if (ret == "")
+            ret = null;
+    }
+    if (ret != null) {
+        var tmp = ret.replace(/-/g, "");
+        AxiosConfig.key = CryptoJS.enc.Utf8.parse(tmp.substring(0, 16));
+        AxiosConfig.iv = CryptoJS.enc.Utf8.parse(tmp.substring(tmp.length -16, tmp.length));
+    }
+    return ret;
+}
+function setToken(id) {
+    try {
+        if(id == null)
+            localStorage.removeItem(GlobalVariables.tokenName);
+        else
+            localStorage.setItem(GlobalVariables.tokenName, id);
+    } catch (error) {
+        console.log(error);
+        document.cookie = id;
+    }
+    if(id == null || id == "") return;
+    var tmp = id.replace(/-/g, "");
+    AxiosConfig.key = CryptoJS.enc.Utf8.parse(tmp.substring(0, 16));
+    AxiosConfig.iv = CryptoJS.enc.Utf8.parse(tmp.substring(tmp.length - 16, tmp.length));
+}
+function getProcess() {
+    var ret = null;
+    try {
+        ret = localStorage.getItem(GlobalVariables.processName);
+    } catch (error) {
+        console.log(error);
+    }
+
+    return ret;
+}
+function setProcess(id) {
+    try {
+        if (id == null)
+            localStorage.removeItem(GlobalVariables.processName);
+        else
+            localStorage.setItem(GlobalVariables.processName, id);
+    } catch (error) {
+        console.log(error);
+    }
+}
+function replaceAccents(text){
+    return text.replace(/Á/g, "A").
+        replace(/É/g, "E").
+        replace(/Í/g, "i").
+        replace(/Ó/g, "o").
+        replace(/Ú/g, "u").
+        replace(/á/g, "a").
+        replace(/é/g, "e").
+        replace(/í/g, "i").
+        replace(/ó/g, "o").
+        replace(/ú/g, "u");
+}
+/****************************************************************************************************************************************/
+/**************************************************************** CAMARA ****************************************************************/
+/****************************************************************************************************************************************/
+function dataURLtoFile(dataurl, filename) {
+ 
+    var arr = dataurl.split(','),
+        mime = arr[0].match(/:(.*?);/)[1],
+        bstr = atob(arr[1]), 
+        n = bstr.length, 
+        u8arr = new Uint8Array(n);
+        
+    while(n--){
+        u8arr[n] = bstr.charCodeAt(n);
+    }   
+    return new File([u8arr], filename, {type:mime});
+}
+/****************************************************************************************************************************************/
+/****************************************************************************************************************************************/
+/****************************************************************************************************************************************/

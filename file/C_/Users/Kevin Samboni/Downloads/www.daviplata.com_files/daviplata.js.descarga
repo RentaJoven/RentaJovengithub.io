@@ -1,0 +1,79 @@
+
+
+var sliderActive = false;
+var slider;
+
+
+function createSlider() {
+    slider = $('ul.benefist-list').bxSlider({
+        controls: false,
+        pager: true,
+        minSlides: 1,
+        maxSlides: 1,
+        slideMargin: 0
+        //hideControlOnEnd: true
+      });
+      return true;
+}
+
+$(document).ready(function(){
+
+
+  if (window.innerWidth < 961) {
+        sliderActive = createSlider();
+  }
+
+
+   $(window).resize(function () {
+
+      //if wide and no slider, create slider
+      if (window.innerWidth <
+       961 && sliderActive == false) {
+          sliderActive = createSlider();
+      }
+
+      //else if narrow and active slider, destroy slider
+      else if (window.innerWidth >= 961 && sliderActive == true){
+          slider.destroySlider();
+          sliderActive = false;
+      }
+      //else if wide and active slider, or narrow and no slider, do nothing
+  });
+
+   $('.bt-youtube')
+    .attr('rel', 'media-gallery')
+    .fancybox({
+      openEffect : 'none',
+      closeEffect : 'none',
+      prevEffect : 'none',
+      nextEffect : 'none',
+
+      arrows : false,
+      helpers : {
+        media : {},
+        buttons : {}
+      }
+    });
+
+
+
+
+  $(".header-accordion").on("click", function(){
+
+    if ($(this).hasClass("active")) {
+
+      $(".header-accordion").removeClass("active");
+      $(".cont-acordeon").slideUp().css("padding", "0");
+
+    }else{
+
+      $(".header-accordion").removeClass("active");
+      $(this).addClass("active");
+      $(".cont-acordeon").slideUp().css("padding", "0");
+      $(this).next(".cont-acordeon").css("padding", "30px 0").slideDown();
+
+    }
+
+  });
+
+});

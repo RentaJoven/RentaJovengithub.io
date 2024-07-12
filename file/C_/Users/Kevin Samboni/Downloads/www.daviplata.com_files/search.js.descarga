@@ -1,0 +1,1 @@
+var optin_sms_val=0;var optin_mail_val=0;function searchWord(){$("#formSearch").submit()}function searchWordhres(){$("#formSearch1").submit()}function searchWord12(){}$(function(){$("#busquedaData").click(function(){$("#formSearch12").submit();return false})});function buscaCerrar(){return false}function searchWord3(){$("#formSearch3").submit()};

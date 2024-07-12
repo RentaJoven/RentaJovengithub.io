@@ -1,0 +1,161 @@
+﻿var AxiosConfig = {
+    defaultUrl: null,
+    defaultDB: null,
+    version: null
+};
+var AxiosMethods = {
+    loginMethod: null,
+    autoErrorFunction: null
+};
+var AxiosConst = {
+    GENERIC_DT: "genericDT",
+    GENERIC_DS: "genericDS",
+    GENERIC_ST: "genericST",
+    GENERIC_DO: "genericDO",
+    EXPORT_DATA: "exportData",
+    EXPORT_DATA_SP: "exportDataSP",
+    EXECUTE_SP: "executeSP"
+}
+
+function httpFunc(callType, sp, parsObject, success, error) {
+    var verData = AxiosConfig.version != null ? "&v=" + AxiosConfig.version : "";
+    var postData = { pars: [], sp: sp, db: AxiosConfig.defaultDB };
+    for (var name in parsObject)
+        postData.pars.push({ name: name, value: parsObject[name] + "" });
+    if (callType == AxiosConst.GENERIC_DS || callType == AxiosConst.GENERIC_DT || callType == AxiosConst.EXPORT_DATA || callType == AxiosConst.GENERIC_DO)
+        httpCallObj(AxiosConfig.defaultUrl + "?op=" + callType + verData, postData, success, error);
+    else
+        httpCallStr(AxiosConfig.defaultUrl + "?op=" + callType + verData, postData, success, error);
+}
+function httpCallSp(url, callType, sp, db, parsObject, success, error) {
+    var verData = AxiosConfig.version != null ? "&v=" + AxiosConfig.version : "";
+    var postData = { pars: [], sp: sp, db: db };
+    for (var name in parsObject) 
+        postData.pars.push({ name: name, value: parsObject[name] + "" });
+    if (callType == AxiosConst.GENERIC_DS || callType == AxiosConst.GENERIC_DT || callType == AxiosConst.EXPORT_DATA)
+        httpCallObj(url + "?op=" + callType + verData, postData, success, error);
+    else 
+        httpCallStr(url + "?op=" + callType + verData, postData, success, error);
+}
+function httpCallSpO(url, callType, sp, db, parsObject, success, error) {
+    var verData = ""
+    if (url.indexOf("&v=") < 0) verData = AxiosConfig.version != null ? "&v=" + AxiosConfig.version : "";
+    var postData = { pars: [], sp: sp, db: db };
+    for (var name in parsObject)
+        postData.pars.push({ name: name, value: parsObject[name] + "" });
+    httpCallObj(url + "?op=" + callType + verData, postData, success, error);
+}
+function httpCallObj(url, data, success, error) {
+    var verData = "", stringData = "";
+    if (url.indexOf("&v=") < 0) verData = AxiosConfig.version != null ? "&v=" + AxiosConfig.version : "";
+    updHeader();
+    if (typeof data == "object") {
+        data["autotimestamp"] = new Date().getTime();
+        stringData = AxiosConfig.key == null ? JSON.stringify(data) : CryptoJS.AES.encrypt(JSON.stringify(data), AxiosConfig.key, {
+            iv: AxiosConfig.iv,
+            mode: CryptoJS.mode.GCM,
+            padding: CryptoJS.pad.Pkcs7
+        }).ciphertext.toString(CryptoJS.enc.Base64);
+    } else
+        stringData = data;
+    axios.post(url + verData, stringData, getHeader(data))
+        .then(function (response) {
+            try {
+                var obj;
+                if (typeof response.data === 'string' || response.data instanceof String){
+                    if(response.data.indexOf("<html")>= 0){
+                        if(AxiosMethods.loginMethod != null)
+                            AxiosMethods.loginMethod();
+                        return;
+                    } else obj = JSON.parse(response.data);
+                } else obj = response.data;
+                if (obj.isError == true && error == "auto" && AxiosMethods.autoErrorFunction) { 
+                    AxiosMethods.autoErrorFunction(obj.errorMessage);
+                } else if (obj.isError == true && error != "auto" && error != null)
+                    error(obj);
+                else
+                    success(obj);
+            } catch (e) {
+                console.log(url);
+                console.log(e);
+                console.log(response);
+                if (error != "auto" && error != null)
+                    error(e);
+                else if (error == "auto" && AxiosMethods.autoErrorFunction) {
+                    AxiosMethods.autoErrorFunction(e);
+                }
+                    
+                
+            }
+        })
+        .catch(function (err) {
+            console.log(url);
+            console.log(err);
+            if (error != "auto" && error != null)
+                error(err);
+            else if (error == "auto" && AxiosMethods.autoErrorFunction)
+                AxiosMethods.autoErrorFunction(err);
+        });
+}
+function httpCallStr(url, data, success, error) {
+    var stringData = "";
+    updHeader();
+    if (typeof data == "object") {
+        data["autotimestamp"] = new Date().getTime();
+        stringData = AxiosConfig.key == null ? JSON.stringify(data) : CryptoJS.AES.encrypt(JSON.stringify(data), AxiosConfig.key, {
+            iv: AxiosConfig.iv,
+            mode: CryptoJS.mode.GCM,
+            padding: CryptoJS.pad.Pkcs7
+        }).ciphertext.toString(CryptoJS.enc.Base64);
+    } else
+        stringData = data;
+    axios.post(url, stringData, getHeader(data))
+        .then(function (response) {
+            if (typeof response.data === 'string' || response.data instanceof String)
+                success(response.data);
+            else if (response.data.isError == true && error == "auto" && AxiosMethods.autoErrorFunction)
+                AxiosMethods.autoErrorFunction(response.data.errorMessage);
+            else
+                success(response.data);
+        })
+        .catch(function (e) {
+            console.log(e);
+            if (error != "auto" && error != null)
+                error(e);
+            else if (error == "auto" && AxiosMethods.autoErrorFunction)
+                AxiosMethods.autoErrorFunction(e);
+        });
+}
+function httpGetUrl(url, callback) {
+    axios.get(url)
+        .then(function (response) {
+            callback(response.data);
+        })
+        .catch(function (error) {
+            console.log(error);
+            callback("");
+        })
+}
+function getHeader(jobject) {
+    var strData = "";
+    if (typeof jobject == "object")
+        strData = JSON.stringify(jobject);
+    else
+        strData = jobject + "";
+    var sid;
+    if(getToken != null)
+        sid = getToken();
+    return {
+        headers: {
+            "contentToken": md5(strData),
+            "sid": sid
+        }
+    }
+}
+function updHeader() {
+    if (getToken != null)
+        getToken();
+}
+
+AxiosConfig.key = null;
+AxiosConfig.iv = null;
